@@ -1,18 +1,18 @@
-import { RiskMindsetQuiz } from "@/components/risk-mindset-quiz";
+import { PortfolioBuilder } from "@/components/portfolio-builder";
 
-export default function Home() {
+export default function PortfolioBuilderPage() {
   return (
     <main className="relative min-h-screen w-full bg-background text-foreground">
       <div className="container mx-auto px-4 py-12 sm:py-16 md:py-24">
         <div className="text-center mb-12">
           <h1 className="text-4xl md:text-6xl font-headline font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-b from-white to-neutral-400">
-            Discover Your Risk Mindset
+            Portfolio Builder
           </h1>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto mt-4">
-            A short quiz to understand your investment personality and unlock your path to wealth.
+            Design a portfolio that matches your risk tolerance and financial goals.
           </p>
         </div>
-        <RiskMindsetQuiz />
+        <PortfolioBuilder />
       </div>
     </main>
   );
