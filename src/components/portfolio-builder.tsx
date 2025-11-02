@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Trash2 } from "lucide-react";
 
 const glassCardClasses = "bg-background/50 backdrop-blur-xl border border-white/10 shadow-xl shadow-black/10";
 
@@ -28,7 +28,7 @@ const availableTickers = [
     { value: 'META', label: 'Meta Platforms Inc.', category: 'stocks', group: 'Stocks' },
     { value: 'TSLA', label: 'Tesla Inc.', category: 'stocks', group: 'Stocks' },
     { value: 'JPM', label: 'JPMorgan Chase & Co.', category: 'stocks', group: 'Stocks' },
-    { value: 'UNH', label: 'UnitedHealth Group', category: 'stocks', group: 'Stocks' },
+    { value伴: 'UNH', label: 'UnitedHealth Group', category: 'stocks', group: 'Stocks' },
     { value: 'XOM', label: 'Exxon Mobil Corp.', category: 'stocks', group: 'Stocks' },
     { value: 'V', label: 'Visa Inc.', category: 'stocks', group: 'Stocks' },
     { value: 'PG', label: 'Procter & Gamble', category: 'stocks', group: 'Stocks' },
@@ -160,7 +160,6 @@ type Ticker = {
   id: string;
   name: string;
   category: "stocks" | "bonds" | "alternatives";
-  allocation: number;
 };
 
 export function PortfolioBuilder() {
@@ -184,37 +183,24 @@ export function PortfolioBuilder() {
     let remainingDiff = diff;
     for (let i = 0; i < otherSliders.length; i++) {
         const sliderKey = otherSliders[i];
-        const canTake = newAllocation[sliderKey] - remainingDiff;
-        if (canTake >= 0 && canTake <= 100) {
+        if (newAllocation[sliderKey] - remainingDiff >= 0 && newAllocation[sliderKey] - remainingDiff <= 100) {
             newAllocation[sliderKey] -= remainingDiff;
             remainingDiff = 0;
             break;
         }
     }
 
-    // If there's still a difference, adjust sliders that have room
     if (remainingDiff !== 0) {
-      for (let i = 0; i < otherSliders.length; i++) {
-        const sliderKey = otherSliders[i];
-        const currentVal = newAllocation[sliderKey];
-        if(remainingDiff > 0) { // need to decrease others
-            const canDecrease = currentVal;
-            const decreaseBy = Math.min(remainingDiff, canDecrease);
-            newAllocation[sliderKey] -= decreaseBy;
-            remainingDiff -= decreaseBy;
-        } else { // need to increase others
-            const canIncrease = 100 - currentVal;
-            const increaseBy = Math.min(-remainingDiff, canIncrease);
-            newAllocation[sliderKey] += increaseBy;
-            remainingDiff += increaseBy;
-        }
+      const sliderToAdjust = otherSliders.find(k => newAllocation[k] - remainingDiff >= 0 && newAllocation[k] - remainingDiff <= 100) || otherSliders[0];
+       if(sliderToAdjust) {
+        newAllocation[sliderToAdjust] -= remainingDiff;
       }
     }
     
-    // Final check to ensure it sums to 100
+    // Ensure total is exactly 100
     const total = Object.values(newAllocation).reduce((sum, v) => sum + v, 0);
-    if (total !== 100) {
-        const adjustment = 100 - total;
+    const adjustment = 100 - total;
+    if (adjustment !== 0) {
         const keyToAdjust = otherSliders.find(k => newAllocation[k] + adjustment >= 0 && newAllocation[k] + adjustment <= 100) || otherSliders[0];
         if (keyToAdjust) {
           newAllocation[keyToAdjust] += adjustment;
@@ -234,13 +220,13 @@ export function PortfolioBuilder() {
     if (tickerData && !selectedTickers.find(t => t.id === tickerData.value)) {
       setSelectedTickers(prev => [
         ...prev,
-        { id: tickerData.value, name: tickerData.label, category: tickerData.category as any, allocation: 0 }
+        { id: tickerData.value, name: tickerData.label, category: tickerData.category as any }
       ]);
     }
   };
 
-  const handleTickerAllocationChange = (tickerId: string, newAllocation: number) => {
-    setSelectedTickers(prev => prev.map(t => t.id === tickerId ? { ...t, allocation: newAllocation } : t));
+  const handleRemoveTicker = (tickerId: string) => {
+    setSelectedTickers(prev => prev.filter(t => t.id !== tickerId));
   };
   
   const getCategoryTickers = (category: keyof Allocation) => selectedTickers.filter(t => t.category === category);
@@ -320,38 +306,56 @@ export function PortfolioBuilder() {
           <CardTitle className="text-2xl font-headline">5. Portfolio Summary</CardTitle>
         </CardHeader>
         <CardContent>
-            <Table>
-                <TableHeader>
-                    <TableRow>
-                        <TableHead>Category</TableHead>
-                        <TableHead>Target Allocation</TableHead>
-                        <TableHead>Tickers</TableHead>
-                    </TableRow>
-                </TableHeader>
-                <TableBody>
-                    <TableRow>
-                        <TableCell className="font-semibold">Stocks</TableCell>
-                        <TableCell>{allocation.stocks}%</TableCell>
-                        <TableCell>
-                            {getCategoryTickers("stocks").map(t => <div key={t.id}>{t.name}</div>)}
-                        </TableCell>
-                    </TableRow>
-                     <TableRow>
-                        <TableCell className="font-semibold">Bonds</TableCell>
-                        <TableCell>{allocation.bonds}%</TableCell>
-                        <TableCell>
-                            {getCategoryTickers("bonds").map(t => <div key={t.id}>{t.name}</div>)}
-                        </TableCell>
-                    </TableRow>
-                     <TableRow>
-                        <TableCell className="font-semibold">Alternatives</TableCell>
-                        <TableCell>{allocation.alternatives}%</TableCell>
-                         <TableCell>
-                            {getCategoryTickers("alternatives").map(t => <div key={t.id}>{t.name}</div>)}
-                        </TableCell>
-                    </TableRow>
-                </TableBody>
-            </Table>
+            <div className="space-y-6">
+                <div>
+                    <div className="flex justify-between items-center mb-2">
+                        <h4 className="font-semibold text-lg">Stocks</h4>
+                        <span className="text-lg font-bold">{allocation.stocks}%</span>
+                    </div>
+                    <div className="pl-4 space-y-2">
+                        {getCategoryTickers("stocks").map(t => (
+                            <div key={t.id} className="flex items-center justify-between p-2 rounded-md bg-background/30">
+                                <span>{t.name} ({t.id})</span>
+                                <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => handleRemoveTicker(t.id)}>
+                                    <Trash2 className="h-4 w-4" />
+                                </Button>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+                 <div>
+                    <div className="flex justify-between items-center mb-2">
+                        <h4 className="font-semibold text-lg">Bonds</h4>
+                        <span className="text-lg font-bold">{allocation.bonds}%</span>
+                    </div>
+                    <div className="pl-4 space-y-2">
+                        {getCategoryTickers("bonds").map(t => (
+                             <div key={t.id} className="flex items-center justify-between p-2 rounded-md bg-background/30">
+                                <span>{t.name} ({t.id})</span>
+                                <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => handleRemoveTicker(t.id)}>
+                                    <Trash2 className="h-4 w-4" />
+                                </Button>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+                 <div>
+                    <div className="flex justify-between items-center mb-2">
+                        <h4 className="font-semibold text-lg">Alternatives</h4>
+                        <span className="text-lg font-bold">{allocation.alternatives}%</span>
+                    </div>
+                    <div className="pl-4 space-y-2">
+                        {getCategoryTickers("alternatives").map(t => (
+                             <div key={t.id} className="flex items-center justify-between p-2 rounded-md bg-background/30">
+                                <span>{t.name} ({t.id})</span>
+                                <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => handleRemoveTicker(t.id)}>
+                                    <Trash2 className="h-4 w-4" />
+                                </Button>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </div>
         </CardContent>
       </Card>
 
