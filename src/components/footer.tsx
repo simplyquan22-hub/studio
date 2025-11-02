@@ -15,7 +15,7 @@ export function Footer() {
           </div>
           <div>
             <Link href="mailto:Raequancol12@gmail.com" className="text-sm text-muted-foreground hover:text-primary transition-colors">
-              Raequancol12@gmail.com
+              Contact Us : Raequancol12@gmail.com
             </Link>
           </div>
         </div>
