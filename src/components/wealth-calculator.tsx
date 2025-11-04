@@ -132,7 +132,7 @@ export function WealthCalculator() {
     setSubmittedValues(values);
   }
 
- const generateInvestmentData = async (inputs: FormData): Promise<InvestmentData[]> => {
+  const generateInvestmentData = async (inputs: FormData): Promise<InvestmentData[]> => {
     const {
       initialInvestment,
       monthlyContribution,
@@ -145,18 +145,16 @@ export function WealthCalculator() {
     } = inputs;
 
     const results: InvestmentData[] = [];
-    const monthlyRate = interestRate / 100 / 12;
-    const inflationMonthlyRate = (adjustForInflation ? inflationRate : 0) / 100 / 12;
+    const monthlyInterestRate = interestRate / 100 / 12;
+    const monthlyInflationRate = inflationRate / 100 / 12;
+    const numMonths = years * 12;
 
-    const effectiveContribution =
-      accountType === 'roth'
-        ? monthlyContribution * (1 - marginalTaxRate / 100)
-        : monthlyContribution;
+    let currentValue = initialInvestment;
+    let totalPrincipal = initialInvestment;
+    let lastYearValue = initialInvestment;
+    let yearlyContribution = 0;
 
-    let futureValue = initialInvestment;
-    let totalInvestment = initialInvestment;
-
-    // Year 0 data
+    // Year 0 data point
     results.push({
       year: 0,
       projectedValue: initialInvestment,
@@ -166,45 +164,49 @@ export function WealthCalculator() {
       annualReturns: 0,
     });
 
-    let lastYearEndValue = initialInvestment;
+    for (let month = 1; month <= numMonths; month++) {
+      currentValue += monthlyContribution;
+      currentValue *= (1 + monthlyInterestRate);
+      
+      totalPrincipal += monthlyContribution;
+      yearlyContribution += monthlyContribution;
 
-    for (let year = 1; year <= years; year++) {
-      let annualContributions = 0;
-      for (let month = 1; month <= 12; month++) {
-        futureValue += effectiveContribution;
-        futureValue *= (1 + monthlyRate);
-        annualContributions += monthlyContribution;
+      if (month % 12 === 0) {
+        const year = month / 12;
+        
+        let endOfYearValue = currentValue;
+        if (accountType === 'traditional') {
+            endOfYearValue *= (1 - marginalTaxRate / 100);
+        }
+
+        let inflationAdjustedValue = endOfYearValue;
+        let inflationAdjustedTotalPrincipal = totalPrincipal;
+        let inflationAdjustedYearlyContribution = yearlyContribution;
+        
+        if (adjustForInflation) {
+            const inflationDivisor = Math.pow(1 + monthlyInflationRate, month);
+            inflationAdjustedValue /= inflationDivisor;
+        }
+
+        const currentYearEndValue = inflationAdjustedValue;
+        const lastYearEndValue = results[results.length-1].projectedValue;
+
+        const annualReturns = currentYearEndValue - lastYearEndValue - yearlyContribution;
+        
+        results.push({
+            year,
+            projectedValue: currentYearEndValue,
+            totalInvestment: totalPrincipal,
+            totalReturns: currentYearEndValue - totalPrincipal,
+            annualContributions: yearlyContribution,
+            annualReturns: annualReturns,
+        });
+
+        yearlyContribution = 0;
       }
-      
-      totalInvestment += annualContributions;
-      
-      let finalFV = futureValue;
-      if (accountType === 'traditional') {
-        finalFV = futureValue * (1 - marginalTaxRate / 100);
-      }
-      
-      const inflationDivisor = Math.pow(1 + inflationMonthlyRate, year * 12);
-      const realFV = finalFV / inflationDivisor;
-      const realTotalInvestment = totalInvestment / inflationDivisor;
-      const realAnnualContributions = annualContributions / inflationDivisor;
-
-      const annualReturns = realFV - lastYearEndValue - realAnnualContributions;
-
-      results.push({
-        year: year,
-        projectedValue: realFV,
-        totalInvestment: realTotalInvestment,
-        totalReturns: realFV - realTotalInvestment,
-        annualContributions: realAnnualContributions,
-        annualReturns: annualReturns,
-      });
-
-      lastYearEndValue = realFV;
     }
-
     return results;
   };
-
 
   const finalData = data ? data[data.length - 1] : null;
 
@@ -391,21 +393,21 @@ export function WealthCalculator() {
                 {submittedValues.adjustForInflation && <span className="text-base font-normal text-muted-foreground ml-2">(Adjusted for Inflation)</span>}
               </CardTitle>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-4 text-center">
-                  <div className="rounded-lg p-4 bg-background/40">
-                    <div className="text-sm text-muted-foreground flex items-center justify-center gap-2">
-                      <TrendingUp className="h-4 w-4"/>
-                      <span>Future Value</span>
-                      <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Info className="h-4 w-4 cursor-pointer" />
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>All returns are estimates — actual results will vary. This calculator is for educational purposes only.</p>
-                          </TooltipContent>
-                        </Tooltip>
-                    </div>
-                    <p className="text-2xl font-bold text-primary">{formatCurrency(finalData.projectedValue)}</p>
-                  </div>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="rounded-lg p-4 bg-background/40">
+                        <div className="text-sm text-muted-foreground flex items-center justify-center gap-2">
+                          <TrendingUp className="h-4 w-4"/>
+                          <span>Future Value</span>
+                          <Info className="h-4 w-4 cursor-pointer" />
+                        </div>
+                        <p className="text-2xl font-bold text-primary">{formatCurrency(finalData.projectedValue)}</p>
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>All returns are estimates — actual results will vary. This calculator is for educational purposes only.</p>
+                    </TooltipContent>
+                  </Tooltip>
                   <div className="rounded-lg p-4 bg-background/40">
                     <p className="text-sm text-muted-foreground flex items-center justify-center gap-2"><PiggyBank className="h-4 w-4"/> Total Invested</p>
                     <p className="text-2xl font-bold">{formatCurrency(finalData.totalInvestment)}</p>
