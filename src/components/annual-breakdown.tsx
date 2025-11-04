@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -16,6 +17,8 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import type { InvestmentData } from "@/components/wealth-calculator";
+import { Card, CardContent } from "./ui/card";
+import { Info } from "lucide-react";
 
 interface AnnualBreakdownProps {
   data: InvestmentData[];
@@ -38,6 +41,25 @@ export function AnnualBreakdown({ data }: AnnualBreakdownProps) {
           View Annual Breakdown
         </AccordionTrigger>
         <AccordionContent>
+           <Card className="bg-background/30 border-white/10 p-4 mb-6">
+            <CardContent className="p-0">
+                <div className="flex items-start gap-3">
+                    <Info className="h-5 w-5 mt-1 text-muted-foreground flex-shrink-0"/>
+                    <div>
+                        <h4 className="font-semibold mb-2">How are "Returns" calculated?</h4>
+                        <div className="text-muted-foreground text-sm space-y-2">
+                           <p>For any given year, the annual return is calculated like this:</p>
+                           <p className="pl-4 italic border-l-2 border-primary/50">
+                             (End Value of Current Year) - (End Value of Previous Year) - (Contributions Made During Current Year)
+                           </p>
+                           <p>
+                            The number that's left is the amount your money earned all by itself through compounding interest during that 12-month period.
+                           </p>
+                        </div>
+                    </div>
+                </div>
+            </CardContent>
+          </Card>
           <div className="max-h-96 overflow-y-auto pr-2">
             <Table>
               <TableHeader className="sticky top-0 bg-background/80 backdrop-blur-sm">
