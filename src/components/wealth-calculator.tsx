@@ -42,6 +42,7 @@ import { InvestmentChart } from "@/components/investment-chart";
 import { AnnualBreakdown } from "@/components/annual-breakdown";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "./ui/label";
+import { calculateProjection } from "@/ai/flows/calculate-projection";
 
 const formSchema = z.object({
   initialInvestment: z.coerce.number({invalid_type_error: "Please enter a number."}).min(0, "Value must be positive."),
@@ -119,99 +120,93 @@ export function WealthCalculator() {
     return () => clearTimeout(debounceSave);
   }, [formValues, form.formState.isDirty]);
 
-  function onSubmit(values: FormData) {
-    const generatedData = generateInvestmentData(values);
+  async function onSubmit(values: FormData) {
+    const generatedData = await generateInvestmentData(values);
     setData(generatedData);
     setSubmittedValues(values);
   }
 
-  const generateInvestmentData = (inputs: FormData): InvestmentData[] => {
+  const generateInvestmentData = async (inputs: FormData): Promise<InvestmentData[]> => {
     const { initialInvestment, monthlyContribution, interestRate, years, accountType, marginalTaxRate, adjustForInflation, inflationRate } = inputs;
-    const annualRate = interestRate / 100;
     const taxRate = marginalTaxRate / 100;
     const inflationDecimal = (inflationRate || 0) / 100;
     const result: InvestmentData[] = [];
-  
+
     const calculateTaxes = (value: number) => {
-      if (accountType === 'traditional') {
-        return value * (1 - taxRate);
-      }
-      return value;
+        if (accountType === 'traditional') {
+            return value * (1 - taxRate);
+        }
+        return value;
     };
-  
-    let currentBalance = initialInvestment;
-    let totalInvested = initialInvestment;
-  
-    const yearZeroData = {
+    
+    // Year 0
+    let yearZeroValue = adjustForInflation ? initialInvestment : initialInvestment;
+    result.push({
         year: 0,
-        projectedValue: calculateTaxes(initialInvestment),
+        projectedValue: calculateTaxes(yearZeroValue),
         totalInvestment: calculateTaxes(initialInvestment),
         totalReturns: 0,
         annualContributions: calculateTaxes(initialInvestment),
         annualReturns: 0,
-    };
-    if (adjustForInflation) {
-        yearZeroData.projectedValue = calculateTaxes(initialInvestment);
-        yearZeroData.totalInvestment = calculateTaxes(initialInvestment);
-    }
-    result.push(yearZeroData);
+    });
 
+    let totalInvested = initialInvestment;
 
     for (let year = 1; year <= years; year++) {
-        const startOfYearBalance = currentBalance;
-        const annualContributions = monthlyContribution * 12;
-        currentBalance += annualContributions;
-        totalInvested += annualContributions;
-        
-        const interestEarned = currentBalance * annualRate;
-        currentBalance += interestEarned;
+        const projection = await calculateProjection({
+            startingBalance: initialInvestment,
+            monthlyContribution: monthlyContribution,
+            annualReturnPercent: interestRate,
+            years: year,
+        });
 
-        const annualReturns = currentBalance - startOfYearBalance - annualContributions;
-  
-        const inflationFactor = adjustForInflation ? Math.pow(1 + inflationDecimal, year) : 1;
+        const startOfYearProjection = await calculateProjection({
+            startingBalance: initialInvestment,
+            monthlyContribution: monthlyContribution,
+            annualReturnPercent: interestRate,
+            years: year - 1,
+        });
+
+        totalInvested += monthlyContribution * 12;
+
+        let projectedValue = projection.futureValue;
         
-        const projectedValue = calculateTaxes(currentBalance / inflationFactor);
-        const inflationAdjustedTotalInvestment = calculateTaxedTotalInvestment(initialInvestment, monthlyContribution, year, taxRate, inflationDecimal, adjustForInflation);
+        let inflationFactor = adjustForInflation ? Math.pow(1 + inflationDecimal, year) : 1;
+        
+        let inflationAdjustedProjectedValue = projectedValue / inflationFactor;
+        
+        let inflationAdjustedTotalInvestment = initialInvestment;
+        if (adjustForInflation) {
+            let currentYearContribution = monthlyContribution * 12;
+            for (let y = 1; y <= year; y++) {
+                inflationAdjustedTotalInvestment += currentYearContribution / Math.pow(1 + inflationDecimal, y);
+            }
+        } else {
+            inflationAdjustedTotalInvestment = initialInvestment + (monthlyContribution * 12 * year);
+        }
+        
+        const finalProjectedValue = calculateTaxes(inflationAdjustedProjectedValue);
+        const finalTotalInvestment = calculateTaxes(inflationAdjustedTotalInvestment);
+        
+        const annualContributions = (monthlyContribution * 12) / inflationFactor;
+
+        const previousYearValue = result[year-1].projectedValue;
+        const annualReturns = finalProjectedValue - previousYearValue - calculateTaxes(annualContributions);
 
 
         result.push({
             year,
-            projectedValue: projectedValue,
-            totalInvestment: inflationAdjustedTotalInvestment,
-            totalReturns: projectedValue - inflationAdjustedTotalInvestment,
-            annualContributions: calculateTaxes(annualContributions / inflationFactor),
-            annualReturns: calculateTaxes(annualReturns / inflationFactor),
+            projectedValue: finalProjectedValue,
+            totalInvestment: finalTotalInvestment,
+            totalReturns: finalProjectedValue - finalTotalInvestment,
+            annualContributions: calculateTaxes(annualContributions),
+            annualReturns: annualReturns > 0 ? annualReturns : 0,
         });
     }
+
     return result;
   };
 
-  const calculateTaxedTotalInvestment = (initial: number, monthly: number, years: number, taxRate: number, inflationRate: number, adjustForInflation: boolean) => {
-    let totalInvested = initial;
-    for (let y = 1; y <= years; y++) {
-        const inflationFactor = adjustForInflation ? Math.pow(1 + inflationRate, y) : 1;
-        totalInvested += (monthly * 12) / inflationFactor;
-    }
-    // This is a simplified model. For a Roth, this is simple. For Traditional, it's more complex.
-    // The current logic applies tax at the end, but contributions are pre-tax.
-    // A more accurate model would be to show the pre-tax value and then an after-tax estimate.
-    // For now, let's just return the inflation-adjusted sum of contributions.
-    let totalContribution = initial;
-    if (adjustForInflation) {
-        let currentYearContribution = monthly * 12;
-        for (let y=1; y <= years; y++) {
-            totalContribution += currentYearContribution / Math.pow(1+inflationRate, y);
-        }
-    } else {
-        totalContribution += monthly * 12 * years;
-    }
-
-    if(form.getValues('accountType') === 'traditional') {
-        return totalContribution * (1-taxRate);
-    }
-    return totalContribution;
-  }
-  
   const finalData = data ? data[data.length - 1] : null;
 
   const formatCurrency = (value: number) => {

@@ -3,12 +3,12 @@
  * @fileOverview A backend flow to calculate investment projections.
  *
  * - calculateProjection - A function that calculates the future value of an investment based on a starting balance, monthly contributions, annual return rate, and duration.
- * - ProjectionInputSchema - The input type for the calculateProjection function.
- * - ProjectionOutputSchema - The return type for the calculateProjection function.
+ * - ProjectionInput - The input type for the calculateProjection function.
+ * - ProjectionOutput - The return type for the calculateProjection function.
  */
 
 import { ai } from '@/ai/genkit';
-import { z } from 'genkit';
+import { z } from 'zod';
 
 export const ProjectionInputSchema = z.object({
   startingBalance: z.number().describe('The initial amount of money.'),
@@ -18,18 +18,12 @@ export const ProjectionInputSchema = z.object({
   annualReturnPercent: z
     .number()
     .describe('The estimated annual return on investment, as a percentage.'),
-  years: z
-    .number()
-    .describe('The number of years the investment will grow.'),
+  years: z.number().describe('The number of years the investment will grow.'),
 });
 export type ProjectionInput = z.infer<typeof ProjectionInputSchema>;
 
 export const ProjectionOutputSchema = z.object({
-  futureValue: z
-    .number()
-    .describe(
-      'The total projected value of the investment.'
-    ),
+  futureValue: z.number().describe('The total projected value of the investment.'),
   futureValueStartingOnly: z
     .number()
     .describe(
@@ -43,45 +37,43 @@ export const ProjectionOutputSchema = z.object({
 });
 export type ProjectionOutput = z.infer<typeof ProjectionOutputSchema>;
 
-async function calculateProjectionFlow(
-  input: ProjectionInput
-): Promise<ProjectionOutput> {
-  const {
-    startingBalance,
-    monthlyContribution,
-    annualReturnPercent,
-    years,
-  } = input;
-
-  const r = annualReturnPercent / 100;
-  const n = years * 12;
-
-  const fvStart = startingBalance * (1 + r) ** years;
-  
-  let fvContrib = 0;
-  if (r > 0) {
-    const monthlyR = r / 12;
-    fvContrib =
-      monthlyContribution *
-      ((((1 + monthlyR) ** n) - 1) / monthlyR);
-  } else {
-    // If rate is 0, future value of contributions is just total contributions
-    fvContrib = monthlyContribution * n;
-  }
-
-
-  return {
-    futureValue: fvStart + fvContrib,
-    futureValueStartingOnly: fvStart,
-    futureValueContributionsOnly: fvContrib,
-  };
-}
-
-export const calculateProjection = ai.defineFlow(
+const calculateProjectionFlow = ai.defineFlow(
   {
-    name: 'calculateProjection',
+    name: 'calculateProjectionFlow',
     inputSchema: ProjectionInputSchema,
     outputSchema: ProjectionOutputSchema,
   },
-  calculateProjectionFlow
+  async (input) => {
+    const {
+      startingBalance,
+      monthlyContribution,
+      annualReturnPercent,
+      years,
+    } = input;
+
+    const r = annualReturnPercent / 100;
+    const n = years * 12;
+
+    const fvStart = startingBalance * (1 + r) ** years;
+
+    let fvContrib = 0;
+    if (r > 0) {
+      const monthlyR = r / 12;
+      fvContrib =
+        monthlyContribution * ((((1 + monthlyR) ** n) - 1) / monthlyR);
+    } else {
+      // If rate is 0, future value of contributions is just total contributions
+      fvContrib = monthlyContribution * n;
+    }
+
+    return {
+      futureValue: fvStart + fvContrib,
+      futureValueStartingOnly: fvStart,
+      futureValueContributionsOnly: fvContrib,
+    };
+  }
 );
+
+export async function calculateProjection(input: ProjectionInput): Promise<ProjectionOutput> {
+    return calculateProjectionFlow(input);
+}
