@@ -123,9 +123,6 @@ export function WealthCalculator() {
     const generatedData = generateInvestmentData(values);
     setData(generatedData);
     setSubmittedValues(values);
-    if (typeof window !== 'undefined') {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
   }
 
   const generateInvestmentData = (inputs: FormData): InvestmentData[] => {

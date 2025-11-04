@@ -1,3 +1,4 @@
+
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -36,6 +37,9 @@ export function CalculatorGuide() {
             </li>
             <li>
               <strong>Account Type:</strong> The type of retirement account you are using. This choice has significant tax implications.
+            </li>
+            <li>
+              <strong>Adjust for Inflation:</strong> When enabled, this projects the future value of your investment in today's dollars, giving you a clearer sense of its future purchasing power.
             </li>
           </ul>
         </CardContent>
