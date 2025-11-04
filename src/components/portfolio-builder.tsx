@@ -286,8 +286,9 @@ export function PortfolioBuilder() {
 
   const renderCategorySection = (category: keyof Allocation, title: string) => {
       const tickers = getCategoryTickers(category);
-      const chartData = tickers.map(t => ({ name: t.id, value: t.allocation }));
       const totalAllocation = getCategoryTotalAllocation(category);
+      const chartData = tickers.map(t => ({ name: t.id, value: t.allocation }));
+      const chartColors = categoryHexColors[category];
 
       return (
         <div>
@@ -300,31 +301,35 @@ export function PortfolioBuilder() {
                     <span className={cn("text-lg font-bold", categoryColors[category])}>{allocation[category]}%</span>
                 </div>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
-              <div className="space-y-2">
-                  {tickers.map(t => (
-                      <div key={t.id} className={cn("flex items-center justify-between p-2 rounded-md gap-2", categoryBgColors[category])}>
-                          <span className="flex-1 truncate text-sm">{t.name} ({t.id})</span>
-                          <div className="flex items-center gap-2">
-                            <Input 
-                                type="number" 
-                                value={t.allocation}
-                                onChange={(e) => handleTickerAllocationChange(t.id, parseInt(e.target.value) || 0)}
-                                className="w-20 h-8 text-right"
-                                max={100}
-                                min={0}
-                            />
-                            <span className="text-muted-foreground">%</span>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => handleRemoveTicker(t.id)}>
-                                <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                      </div>
-                  ))}
-              </div>
-              <div className="h-40">
-                  <AllocationChart data={chartData} colors={categoryHexColors[category]} />
-              </div>
+             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="md:col-span-2 space-y-2">
+                    {tickers.length > 0 ? tickers.map(t => (
+                        <div key={t.id} className={cn("flex items-center justify-between p-2 rounded-md gap-2", categoryBgColors[category])}>
+                            <span className="flex-1 truncate text-sm">{t.name} ({t.id})</span>
+                            <div className="flex items-center gap-2">
+                              <Input 
+                                  type="number" 
+                                  value={t.allocation}
+                                  onChange={(e) => handleTickerAllocationChange(t.id, parseInt(e.target.value) || 0)}
+                                  className="w-20 h-8 text-right"
+                                  max={100}
+                                  min={0}
+                              />
+                              <span className="text-muted-foreground">%</span>
+                              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => handleRemoveTicker(t.id)}>
+                                  <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                        </div>
+                    )) : (
+                        <div className="flex items-center justify-center h-full text-muted-foreground text-sm p-4 rounded-md bg-background/20">
+                            Add tickers to this category to see allocation details.
+                        </div>
+                    )}
+                </div>
+                <div className="h-48 md:h-full">
+                    <AllocationChart data={chartData} colors={chartColors} />
+                </div>
             </div>
         </div>
       );
