@@ -128,15 +128,16 @@ export function WealthCalculator() {
   const generateInvestmentData = async (inputs: FormData): Promise<InvestmentData[]> => {
     const { initialInvestment, monthlyContribution, interestRate, years, accountType, marginalTaxRate, adjustForInflation, inflationRate } = inputs;
     
-    const monthlyReturnRate = interestRate / 100 / 12;
+    const annualRate = interestRate / 100;
+    const monthlyRate = annualRate / 12;
     const taxRate = marginalTaxRate / 100;
     const inflationDecimal = (inflationRate || 0) / 100;
-    const numberOfMonths = years * 12;
     
     const result: InvestmentData[] = [];
-
-    let currentBalance = initialInvestment;
-    let totalInvested = initialInvestment;
+    
+    let futureValue = initialInvestment;
+    let totalInvestment = initialInvestment;
+    let lastYearFutureValue = initialInvestment;
 
     const calculateTaxes = (value: number) => {
         if (accountType === 'traditional') {
@@ -144,8 +145,7 @@ export function WealthCalculator() {
         }
         return value;
     };
-
-    // Year 0 Data
+    
     result.push({
         year: 0,
         projectedValue: calculateTaxes(initialInvestment),
@@ -154,41 +154,41 @@ export function WealthCalculator() {
         annualContributions: calculateTaxes(initialInvestment),
         annualReturns: 0,
     });
-
-    let prevYearProjectedValue = calculateTaxes(initialInvestment);
+    
+    lastYearFutureValue = calculateTaxes(initialInvestment);
 
     for (let year = 1; year <= years; year++) {
-      let annualContributions = 0;
-      for (let month = 1; month <= 12; month++) {
-        currentBalance += monthlyContribution;
-        annualContributions += monthlyContribution;
-        currentBalance *= (1 + monthlyReturnRate);
-      }
+        let yearlyContributions = 0;
+        for (let month = 1; month <= 12; month++) {
+            futureValue += monthlyContribution;
+            futureValue *= (1 + monthlyRate);
+            yearlyContributions += monthlyContribution;
+        }
 
-      totalInvested += annualContributions;
-      
-      const inflationFactor = adjustForInflation ? Math.pow(1 + inflationDecimal, year) : 1;
-      
-      const inflationAdjustedValue = currentBalance / inflationFactor;
-      const inflationAdjustedTotalInvestment = totalInvested / inflationFactor;
-      const inflationAdjustedAnnualContributions = annualContributions / inflationFactor;
+        totalInvestment += yearlyContributions;
 
-      const finalProjectedValue = calculateTaxes(inflationAdjustedValue);
-      const finalTotalInvestment = calculateTaxes(inflationAdjustedTotalInvestment);
-      const finalAnnualContributions = calculateTaxes(inflationAdjustedAnnualContributions);
-      
-      const annualReturns = finalProjectedValue - prevYearProjectedValue - finalAnnualContributions;
+        const inflationFactor = adjustForInflation ? Math.pow(1 + inflationDecimal, year) : 1;
+        
+        const inflationAdjustedValue = futureValue / inflationFactor;
+        const inflationAdjustedTotalInvestment = totalInvestment / inflationFactor;
+        const inflationAdjustedAnnualContributions = yearlyContributions / inflationFactor;
 
-      result.push({
-        year: year,
-        projectedValue: finalProjectedValue,
-        totalInvestment: finalTotalInvestment,
-        totalReturns: finalProjectedValue - finalTotalInvestment,
-        annualContributions: finalAnnualContributions,
-        annualReturns: annualReturns > 0 ? annualReturns : 0,
-      });
+        const finalProjectedValue = calculateTaxes(inflationAdjustedValue);
+        const finalTotalInvestment = calculateTaxes(inflationAdjustedTotalInvestment);
+        const finalAnnualContributions = calculateTaxes(inflationAdjustedAnnualContributions) + (year === 1 ? calculateTaxes(initialInvestment) : 0);
 
-      prevYearProjectedValue = finalProjectedValue;
+        const thisYearAnnualReturns = finalProjectedValue - lastYearFutureValue - (calculateTaxes(inflationAdjustedAnnualContributions));
+        
+        result.push({
+            year: year,
+            projectedValue: finalProjectedValue,
+            totalInvestment: finalTotalInvestment,
+            totalReturns: finalProjectedValue - finalTotalInvestment,
+            annualContributions: finalAnnualContributions,
+            annualReturns: thisYearAnnualReturns,
+        });
+
+        lastYearFutureValue = finalProjectedValue;
     }
 
     return result;
@@ -411,4 +411,5 @@ export function WealthCalculator() {
   );
 }
 
+    
     
