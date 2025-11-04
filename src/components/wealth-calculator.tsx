@@ -17,6 +17,7 @@ import {
   ArrowRight,
   Scale,
   ArrowLeft,
+  Info,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -41,6 +42,13 @@ import { InvestmentChart } from "@/components/investment-chart";
 import { AnnualBreakdown } from "@/components/annual-breakdown";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "./ui/label";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+
 
 const formSchema = z.object({
   initialInvestment: z.coerce.number({invalid_type_error: "Please enter a number."}).min(0, "Value must be positive."),
@@ -125,65 +133,67 @@ export function WealthCalculator() {
   }
 
   const generateInvestmentData = async (inputs: FormData): Promise<InvestmentData[]> => {
-    const { initialInvestment, monthlyContribution, interestRate, years, accountType, marginalTaxRate, adjustForInflation, inflationRate } = inputs;
+    const { 
+        initialInvestment, 
+        monthlyContribution, 
+        interestRate, 
+        years, 
+        accountType, 
+        marginalTaxRate, 
+        adjustForInflation, 
+        inflationRate 
+    } = inputs;
     
     const results: InvestmentData[] = [];
-    
     const annualInterestRate = interestRate / 100;
     const monthlyInterestRate = annualInterestRate / 12;
     const annualInflationRate = (adjustForInflation ? inflationRate : 0) / 100;
-    
-    let currentBalance = initialInvestment;
-    let totalContributions = initialInvestment;
-    let lastYearBalance = initialInvestment;
 
+    let currentBalance = initialInvestment;
+    let totalInvestment = initialInvestment;
+    
+    // For Roth, the initial investment is also post-tax, but we assume the user enters the amount they have ready to invest.
+    // The monthly contributions are where the tax is "felt".
+    let effectiveMonthlyContribution = monthlyContribution;
     if (accountType === 'roth') {
-        lastYearBalance = initialInvestment * (1 - marginalTaxRate / 100);
-        currentBalance = lastYearBalance;
-        totalContributions = lastYearBalance;
+        effectiveMonthlyContribution = monthlyContribution * (1 - marginalTaxRate / 100);
     }
 
-
+    // Year 0
     results.push({
         year: 0,
         projectedValue: currentBalance,
-        totalInvestment: totalContributions,
+        totalInvestment: totalInvestment,
         totalReturns: 0,
-        annualContributions: totalContributions,
+        annualContributions: initialInvestment,
         annualReturns: 0,
     });
     
     for (let year = 1; year <= years; year++) {
-        let yearEndBalance = currentBalance;
+        let yearStartBalance = currentBalance;
         let annualContributions = 0;
-
+        
         for (let month = 1; month <= 12; month++) {
-            let contribution = monthlyContribution;
-            if (accountType === 'roth') {
-                contribution = monthlyContribution * (1 - marginalTaxRate / 100);
-            }
-            yearEndBalance += contribution;
-            yearEndBalance *= (1 + monthlyInterestRate);
-            annualContributions += contribution;
+            currentBalance += effectiveMonthlyContribution;
+            currentBalance *= (1 + monthlyInterestRate);
+            annualContributions += effectiveMonthlyContribution;
         }
 
-        currentBalance = yearEndBalance;
-        totalContributions += annualContributions;
+        totalInvestment += annualContributions;
         
         let finalProjectedValue = currentBalance;
+        
         if (accountType === 'traditional') {
             finalProjectedValue = currentBalance * (1 - marginalTaxRate / 100);
         }
 
-        // Adjust all values for inflation for this year
         const inflationDivisor = Math.pow(1 + annualInflationRate, year);
         const inflationAdjustedProjectedValue = finalProjectedValue / inflationDivisor;
-        const inflationAdjustedTotalInvestment = totalContributions / inflationDivisor;
+        const inflationAdjustedTotalInvestment = totalInvestment / inflationDivisor;
         const inflationAdjustedAnnualContributions = annualContributions / inflationDivisor;
         
-        const lastYearProjectedValue = results[year-1].projectedValue;
-
-        const annualReturns = inflationAdjustedProjectedValue - lastYearProjectedValue - inflationAdjustedAnnualContributions;
+        const previousYearProjectedValue = results[year - 1].projectedValue;
+        const annualReturns = inflationAdjustedProjectedValue - previousYearProjectedValue - inflationAdjustedAnnualContributions;
 
         results.push({
             year: year,
@@ -197,6 +207,7 @@ export function WealthCalculator() {
 
     return results;
   };
+
 
   const finalData = data ? data[data.length - 1] : null;
 
@@ -222,6 +233,7 @@ export function WealthCalculator() {
   };
 
   return (
+    <TooltipProvider>
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
       <Card className={`lg:col-span-1 ${glassCardClasses}`}>
         <CardHeader>
@@ -383,7 +395,18 @@ export function WealthCalculator() {
             </CardTitle>
              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-4 text-center">
                 <div className="rounded-lg p-4 bg-background/40">
-                  <p className="text-sm text-muted-foreground flex items-center justify-center gap-2"><TrendingUp className="h-4 w-4"/> Future Value</p>
+                  <div className="text-sm text-muted-foreground flex items-center justify-center gap-2">
+                    <TrendingUp className="h-4 w-4"/>
+                    <span>Future Value</span>
+                     <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Info className="h-4 w-4 cursor-pointer" />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>All returns are estimates — actual results will vary. This calculator is for educational purposes only.</p>
+                        </TooltipContent>
+                      </Tooltip>
+                  </div>
                   <p className="text-2xl font-bold text-primary">{formatCurrency(finalData.projectedValue)}</p>
                 </div>
                 <div className="rounded-lg p-4 bg-background/40">
@@ -412,8 +435,6 @@ export function WealthCalculator() {
       )}
       </div>
     </div>
+    </TooltipProvider>
   );
 }
-
-    
-    
