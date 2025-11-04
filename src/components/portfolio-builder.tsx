@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -68,7 +69,7 @@ const availableTickers = [
     { value: 'VTSAX', label: 'Vanguard Total Stock Market Index Fund', category: 'stocks', group: 'Index Funds' },
     { value: 'FSKAX', label: 'Fidelity Total Market Index Fund', category: 'stocks', group: 'Index Funds' },
     { value: 'VTIAX', label: 'Vanguard Total International Stock Index Fund', category: 'stocks', group: 'Index Funds' },
-    { value: 'VBTLX', label: 'Vanguard Total Bond Market Index Fund', category: 'stocks', group: 'Index Funds' },
+    { value: 'VBTLX', label: 'Vanguard Total Bond Market Index Fund', category: 'bonds', group: 'Index Funds' },
     { value: 'VINIX', label: 'Vanguard Institutional Index Fund', category: 'stocks', group: 'Index Funds' },
     { value: 'FZROX', label: 'Fidelity ZERO Total Market Index Fund', category: 'stocks', group: 'Index Funds' },
     { value: 'SWISX', label: 'Schwab International Index Fund', category: 'stocks', group: 'Index Funds' },
@@ -173,6 +174,7 @@ type Ticker = {
   id: string;
   name: string;
   category: "stocks" | "bonds" | "alternatives";
+  allocation: number;
 };
 
 const STORAGE_KEY = 'wealthpath-portfolio-state';
@@ -254,9 +256,12 @@ export function PortfolioBuilder() {
   const handleAddTicker = (tickerValue: string) => {
     const tickerData = availableTickers.find(t => t.value === tickerValue);
     if (tickerData && !selectedTickers.find(t => t.id === tickerData.value)) {
+      const categoryTickers = selectedTickers.filter(t => t.category === tickerData.category);
+      const newAllocation = categoryTickers.length > 0 ? 0 : 100;
+
       setSelectedTickers(prev => [
         ...prev,
-        { id: tickerData.value, name: tickerData.label, category: tickerData.category as any }
+        { id: tickerData.value, name: tickerData.label, category: tickerData.category as any, allocation: 0 }
       ]);
     }
   };
@@ -265,7 +270,15 @@ export function PortfolioBuilder() {
     setSelectedTickers(prev => prev.filter(t => t.id !== tickerId));
   };
   
+  const handleTickerAllocationChange = (tickerId: string, newAllocation: number) => {
+    setSelectedTickers(prev => prev.map(t => t.id === tickerId ? { ...t, allocation: newAllocation } : t));
+  };
+
   const getCategoryTickers = (category: keyof Allocation) => selectedTickers.filter(t => t.category === category);
+  
+  const getCategoryTotalAllocation = (category: keyof Allocation) => {
+    return getCategoryTickers(category).reduce((total, ticker) => total + ticker.allocation, 0);
+  };
 
 
   return (
@@ -353,15 +366,29 @@ export function PortfolioBuilder() {
                 <div>
                     <div className="flex justify-between items-center mb-2">
                         <h4 className={cn("font-semibold text-lg", categoryColors.stocks)}>Stocks</h4>
-                        <span className={cn("text-lg font-bold", categoryColors.stocks)}>{allocation.stocks}%</span>
+                        <div className="flex items-center gap-4">
+                            <span className="text-sm text-muted-foreground">Total: {getCategoryTotalAllocation("stocks")}%</span>
+                            <span className={cn("text-lg font-bold", categoryColors.stocks)}>{allocation.stocks}%</span>
+                        </div>
                     </div>
                     <div className="pl-4 space-y-2">
                         {getCategoryTickers("stocks").map(t => (
-                            <div key={t.id} className={cn("flex items-center justify-between p-2 rounded-md", categoryBgColors.stocks)}>
-                                <span>{t.name} ({t.id})</span>
-                                <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => handleRemoveTicker(t.id)}>
-                                    <Trash2 className="h-4 w-4" />
-                                </Button>
+                            <div key={t.id} className={cn("flex items-center justify-between p-2 rounded-md gap-2", categoryBgColors.stocks)}>
+                                <span className="flex-1 truncate">{t.name} ({t.id})</span>
+                                <div className="flex items-center gap-2">
+                                  <Input 
+                                      type="number" 
+                                      value={t.allocation}
+                                      onChange={(e) => handleTickerAllocationChange(t.id, parseInt(e.target.value) || 0)}
+                                      className="w-20 h-8 text-right"
+                                      max={100}
+                                      min={0}
+                                  />
+                                  <span className="text-muted-foreground">%</span>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => handleRemoveTicker(t.id)}>
+                                      <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </div>
                             </div>
                         ))}
                     </div>
@@ -369,15 +396,29 @@ export function PortfolioBuilder() {
                  <div>
                     <div className="flex justify-between items-center mb-2">
                         <h4 className={cn("font-semibold text-lg", categoryColors.bonds)}>Bonds</h4>
-                        <span className={cn("text-lg font-bold", categoryColors.bonds)}>{allocation.bonds}%</span>
+                        <div className="flex items-center gap-4">
+                           <span className="text-sm text-muted-foreground">Total: {getCategoryTotalAllocation("bonds")}%</span>
+                           <span className={cn("text-lg font-bold", categoryColors.bonds)}>{allocation.bonds}%</span>
+                        </div>
                     </div>
                     <div className="pl-4 space-y-2">
                         {getCategoryTickers("bonds").map(t => (
-                             <div key={t.id} className={cn("flex items-center justify-between p-2 rounded-md", categoryBgColors.bonds)}>
-                                <span>{t.name} ({t.id})</span>
-                                <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => handleRemoveTicker(t.id)}>
-                                    <Trash2 className="h-4 w-4" />
-                                </Button>
+                             <div key={t.id} className={cn("flex items-center justify-between p-2 rounded-md gap-2", categoryBgColors.bonds)}>
+                                <span className="flex-1 truncate">{t.name} ({t.id})</span>
+                                 <div className="flex items-center gap-2">
+                                  <Input 
+                                      type="number" 
+                                      value={t.allocation}
+                                      onChange={(e) => handleTickerAllocationChange(t.id, parseInt(e.target.value) || 0)}
+                                      className="w-20 h-8 text-right"
+                                      max={100}
+                                      min={0}
+                                  />
+                                   <span className="text-muted-foreground">%</span>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => handleRemoveTicker(t.id)}>
+                                      <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                 </div>
                             </div>
                         ))}
                     </div>
@@ -385,15 +426,29 @@ export function PortfolioBuilder() {
                  <div>
                     <div className="flex justify-between items-center mb-2">
                         <h4 className={cn("font-semibold text-lg", categoryColors.alternatives)}>Alternatives</h4>
-                        <span className={cn("text-lg font-bold", categoryColors.alternatives)}>{allocation.alternatives}%</span>
+                        <div className="flex items-center gap-4">
+                            <span className="text-sm text-muted-foreground">Total: {getCategoryTotalAllocation("alternatives")}%</span>
+                            <span className={cn("text-lg font-bold", categoryColors.alternatives)}>{allocation.alternatives}%</span>
+                        </div>
                     </div>
                     <div className="pl-4 space-y-2">
                         {getCategoryTickers("alternatives").map(t => (
-                             <div key={t.id} className={cn("flex items-center justify-between p-2 rounded-md", categoryBgColors.alternatives)}>
-                                <span>{t.name} ({t.id})</span>
-                                <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => handleRemoveTicker(t.id)}>
-                                    <Trash2 className="h-4 w-4" />
-                                </Button>
+                             <div key={t.id} className={cn("flex items-center justify-between p-2 rounded-md gap-2", categoryBgColors.alternatives)}>
+                                <span className="flex-1 truncate">{t.name} ({t.id})</span>
+                                 <div className="flex items-center gap-2">
+                                  <Input 
+                                      type="number" 
+                                      value={t.allocation}
+                                      onChange={(e) => handleTickerAllocationChange(t.id, parseInt(e.target.value) || 0)}
+                                      className="w-20 h-8 text-right"
+                                      max={100}
+                                      min={0}
+                                  />
+                                  <span className="text-muted-foreground">%</span>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => handleRemoveTicker(t.id)}>
+                                      <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                 </div>
                             </div>
                         ))}
                     </div>
@@ -415,5 +470,7 @@ export function PortfolioBuilder() {
     </div>
   );
 }
+
+    
 
     
