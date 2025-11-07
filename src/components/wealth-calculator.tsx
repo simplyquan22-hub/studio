@@ -18,6 +18,9 @@ import {
   Scale,
   ArrowLeft,
   Info,
+  HeartCrack,
+  Smile,
+  ShieldAlert,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -42,6 +45,15 @@ import { InvestmentChart } from "@/components/investment-chart";
 import { AnnualBreakdown } from "@/components/annual-breakdown";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "./ui/label";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Tooltip,
   TooltipContent,
@@ -78,6 +90,9 @@ const STORAGE_KEY = 'wealthpath-calculator-state';
 export function WealthCalculator() {
   const [data, setData] = React.useState<InvestmentData[] | null>(null);
   const [submittedValues, setSubmittedValues] = React.useState<FormData | null>(null);
+  const [isCrashSimulated, setIsCrashSimulated] = React.useState(false);
+  const [showCrashPopup, setShowCrashPopup] = React.useState(false);
+
   const router = useRouter();
 
 
@@ -130,6 +145,7 @@ export function WealthCalculator() {
     const generatedData = await generateInvestmentData(values);
     setData(generatedData);
     setSubmittedValues(values);
+    setIsCrashSimulated(false);
   }
 
   const generateInvestmentData = async (inputs: FormData): Promise<InvestmentData[]> => {
@@ -146,13 +162,19 @@ export function WealthCalculator() {
 
     const results: InvestmentData[] = [];
     const monthlyInterestRate = interestRate / 100 / 12;
-    const monthlyInflationRate = inflationRate / 100 / 12;
     const numMonths = years * 12;
 
     let currentValue = initialInvestment;
     let totalPrincipal = initialInvestment;
+    
     let lastYearValue = initialInvestment;
-    let yearlyContribution = 0;
+    if (accountType === 'traditional') {
+      lastYearValue *= (1 - marginalTaxRate / 100);
+    }
+    if (adjustForInflation) {
+      lastYearValue /= Math.pow(1 + (inflationRate / 100), 0);
+    }
+
 
     // Year 0 data point
     results.push({
@@ -164,51 +186,63 @@ export function WealthCalculator() {
       annualReturns: 0,
     });
 
-    for (let month = 1; month <= numMonths; month++) {
-      currentValue += monthlyContribution;
-      currentValue *= (1 + monthlyInterestRate);
-      
-      totalPrincipal += monthlyContribution;
-      yearlyContribution += monthlyContribution;
+    for (let year = 1; year <= years; year++) {
+        let yearlyContribution = 0;
+        let beginningOfYearValue = currentValue;
 
-      if (month % 12 === 0) {
-        const year = month / 12;
+        for (let month = 1; month <= 12; month++) {
+            currentValue += monthlyContribution;
+            currentValue *= (1 + monthlyInterestRate);
+            yearlyContribution += monthlyContribution;
+        }
         
+        totalPrincipal += yearlyContribution;
+
         let endOfYearValue = currentValue;
+
         if (accountType === 'traditional') {
             endOfYearValue *= (1 - marginalTaxRate / 100);
         }
 
-        let inflationAdjustedValue = endOfYearValue;
-        let inflationAdjustedTotalPrincipal = totalPrincipal;
-        let inflationAdjustedYearlyContribution = yearlyContribution;
-        
         if (adjustForInflation) {
-            const inflationDivisor = Math.pow(1 + monthlyInflationRate, month);
-            inflationAdjustedValue /= inflationDivisor;
+            endOfYearValue /= Math.pow(1 + (inflationRate / 100), year);
         }
 
-        const currentYearEndValue = inflationAdjustedValue;
-        const lastYearEndValue = results[results.length-1].projectedValue;
-
-        const annualReturns = currentYearEndValue - lastYearEndValue - yearlyContribution;
+        const annualReturns = endOfYearValue - lastYearValue - (accountType === 'roth' ? yearlyContribution * (1-marginalTaxRate/100) : yearlyContribution);
         
         results.push({
             year,
-            projectedValue: currentYearEndValue,
+            projectedValue: endOfYearValue,
             totalInvestment: totalPrincipal,
-            totalReturns: currentYearEndValue - totalPrincipal,
+            totalReturns: endOfYearValue - totalPrincipal,
             annualContributions: yearlyContribution,
-            annualReturns: annualReturns,
+            annualReturns: isNaN(annualReturns) ? 0 : annualReturns,
         });
 
-        yearlyContribution = 0;
-      }
+        lastYearValue = endOfYearValue;
     }
+
     return results;
   };
 
+  const handleSimulateCrash = () => {
+    setIsCrashSimulated(true);
+    setShowCrashPopup(true);
+  };
+
+  const handleRevertCrash = () => {
+    setIsCrashSimulated(false);
+  };
+
   const finalData = data ? data[data.length - 1] : null;
+  let finalProjectedValue = finalData?.projectedValue ?? 0;
+  let finalTotalReturns = finalData?.totalReturns ?? 0;
+
+  if (isCrashSimulated) {
+      finalProjectedValue *= 0.8;
+      const totalInvestment = finalData?.totalInvestment ?? 0;
+      finalTotalReturns = finalProjectedValue - totalInvestment;
+  }
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("en-US", {
@@ -388,20 +422,31 @@ export function WealthCalculator() {
         {data && finalData && submittedValues ? (
           <Card className={glassCardClasses}>
             <CardHeader>
-              <CardTitle className="text-2xl font-headline">
-                {`Projected Growth for ${getAccountTypeName(submittedValues?.accountType)}`}
-                {submittedValues.adjustForInflation && <span className="text-base font-normal text-muted-foreground ml-2">(Adjusted for Inflation)</span>}
+              <CardTitle className="text-2xl font-headline flex justify-between items-center">
+                <span>
+                  {`Projected Growth for ${getAccountTypeName(submittedValues?.accountType)}`}
+                  {submittedValues.adjustForInflation && <span className="text-base font-normal text-muted-foreground ml-2">(Adjusted for Inflation)</span>}
+                </span>
+                {!isCrashSimulated ? (
+                  <Button variant="destructive" size="sm" onClick={handleSimulateCrash}>
+                    <ShieldAlert className="mr-2 h-4 w-4" /> Simulate -20% Drop
+                  </Button>
+                ) : (
+                  <Button variant="secondary" size="sm" onClick={handleRevertCrash}>
+                    <Smile className="mr-2 h-4 w-4" /> Revert Simulation
+                  </Button>
+                )}
               </CardTitle>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-4 text-center">
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <div className="rounded-lg p-4 bg-background/40">
+                      <div className="rounded-lg p-4 bg-background/40 cursor-pointer">
                         <div className="text-sm text-muted-foreground flex items-center justify-center gap-2">
-                          <TrendingUp className="h-4 w-4"/>
+                          {isCrashSimulated ? <HeartCrack className="h-4 w-4 text-destructive" /> : <TrendingUp className="h-4 w-4"/>}
                           <span>Future Value</span>
-                          <Info className="h-4 w-4 cursor-pointer" />
+                          <Info className="h-4 w-4" />
                         </div>
-                        <p className="text-2xl font-bold text-primary">{formatCurrency(finalData.projectedValue)}</p>
+                        <p className={`text-2xl font-bold ${isCrashSimulated ? 'text-destructive' : 'text-primary'}`}>{formatCurrency(finalProjectedValue)}</p>
                       </div>
                     </TooltipTrigger>
                     <TooltipContent>
@@ -413,8 +458,10 @@ export function WealthCalculator() {
                     <p className="text-2xl font-bold">{formatCurrency(finalData.totalInvestment)}</p>
                   </div>
                   <div className="rounded-lg p-4 bg-background/40">
-                    <p className="text-sm text-muted-foreground flex items-center justify-center gap-2"><TrendingUp className="h-4 w-4 text-green-400"/> Total Returns</p>
-                    <p className="text-2xl font-bold text-green-400">{formatCurrency(finalData.totalReturns)}</p>
+                    <p className="text-sm text-muted-foreground flex items-center justify-center gap-2">
+                      <TrendingUp className={`h-4 w-4 ${finalTotalReturns >= 0 ? 'text-green-400' : 'text-destructive'}`}/> Total Returns
+                    </p>
+                    <p className={`text-2xl font-bold ${finalTotalReturns >= 0 ? 'text-green-400' : 'text-destructive'}`}>{formatCurrency(finalTotalReturns)}</p>
                   </div>
                 </div>
             </CardHeader>
@@ -434,8 +481,23 @@ export function WealthCalculator() {
         )}
         </div>
       </div>
+      <AlertDialog open={showCrashPopup} onOpenChange={setShowCrashPopup}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>The market just dropped 20%...</AlertDialogTitle>
+            <AlertDialogDescription>
+              Your new projected value is <span className="font-bold text-destructive">{formatCurrency(finalProjectedValue)}</span>.
+              This is a simulation. How would you react in this real-life scenario?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-col gap-2">
+            <Button variant="outline" onClick={() => setShowCrashPopup(false)}>😱 “Sell everything!”</Button>
+            <Button variant="outline" onClick={() => setShowCrashPopup(false)}>😬 “Reduce risk…”</Button>
+            <Button variant="outline" onClick={() => setShowCrashPopup(false)}>😐 “Stay calm & hold.”</Button>
+            <AlertDialogAction onClick={() => setShowCrashPopup(false)}>🧘 “Buy more while it’s cheap!”</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </TooltipProvider>
   );
 }
-
-    
