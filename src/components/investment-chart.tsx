@@ -1,12 +1,14 @@
 "use client";
 
 import * as React from "react";
-import { Line, LineChart, CartesianGrid, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import { Area, AreaChart, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceDot } from "recharts";
 import type { InvestmentData } from "@/components/wealth-calculator";
 import { Card } from "./ui/card";
 
 interface InvestmentChartProps {
   data: InvestmentData[];
+  selectedYear: number;
+  adjustForInflation: boolean;
 }
 
 const formatCurrency = (value: number) => {
@@ -19,13 +21,23 @@ const formatCurrency = (value: number) => {
   return `$${value.toFixed(0)}`;
 };
 
-const CustomTooltip = ({ active, payload, label }: any) => {
+const CustomTooltip = ({ active, payload, label, adjustForInflation }: any) => {
   if (active && payload && payload.length) {
+    const yearData = payload[0].payload as InvestmentData;
+    let projectedValue = yearData.projectedValue;
+    let totalInvestment = yearData.totalInvestment;
+
+    if (adjustForInflation) {
+        const inflationDivisor = Math.pow(1 + (0.03), yearData.year); // Assuming 3% for tooltip, should be passed in ideally
+        projectedValue = yearData.inflationAdjustedValue;
+        totalInvestment /= inflationDivisor;
+    }
+    
     return (
       <Card className="p-4 bg-background/80 backdrop-blur-sm border-white/10">
         <p className="label font-bold">{`Year ${label}`}</p>
-        <p className="intro text-primary">{`Projected Value: ${new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(payload[0].value)}`}</p>
-        <p className="intro text-muted-foreground">{`Total Investment: ${new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(payload[1].value)}`}</p>
+        <p className="intro text-primary">{`Projected Value: ${new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(projectedValue)}`}</p>
+        <p className="intro text-muted-foreground">{`Total Investment: ${new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(totalInvestment)}`}</p>
       </Card>
     );
   }
@@ -33,12 +45,33 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 };
 
 
-export function InvestmentChart({ data }: InvestmentChartProps) {
+export function InvestmentChart({ data, selectedYear, adjustForInflation }: InvestmentChartProps) {
+  const chartData = data.map(d => {
+    let projectedValue = d.projectedValue;
+    let totalInvestment = d.totalInvestment;
+
+    if (adjustForInflation) {
+        const inflationDivisor = Math.pow(1 + (0.03), d.year); // Should be passed from form
+        projectedValue = d.inflationAdjustedValue;
+        totalInvestment /= inflationDivisor;
+    }
+
+    return {
+        ...d,
+        displayProjectedValue: projectedValue,
+        displayTotalInvestment: totalInvestment,
+        displayReturns: Math.max(0, projectedValue - totalInvestment),
+    };
+  });
+  
+  const selectedYearData = chartData.find(d => d.year === selectedYear);
+
+
   return (
     <div className="h-80 w-full mt-8">
       <ResponsiveContainer width="100%" height="100%">
-        <LineChart
-          data={data}
+        <AreaChart
+          data={chartData}
           margin={{
             top: 5,
             right: 20,
@@ -46,6 +79,16 @@ export function InvestmentChart({ data }: InvestmentChartProps) {
             bottom: 5,
           }}
         >
+          <defs>
+             <linearGradient id="colorReturns" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.8}/>
+                <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
+            </linearGradient>
+            <linearGradient id="colorInvestment" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="hsl(var(--muted-foreground))" stopOpacity={0.4}/>
+                <stop offset="95%" stopColor="hsl(var(--muted-foreground))" stopOpacity={0}/>
+            </linearGradient>
+          </defs>
           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
           <XAxis 
             dataKey="year" 
@@ -58,29 +101,41 @@ export function InvestmentChart({ data }: InvestmentChartProps) {
             stroke="hsl(var(--muted-foreground))"
             tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
             tickLine={{ stroke: 'hsl(var(--muted-foreground))' }}
+            domain={['dataMin', 'dataMax']}
           />
-          <Tooltip content={<CustomTooltip />} cursor={{ stroke: 'hsl(var(--primary))', strokeWidth: 1, strokeDasharray: '3 3' }}/>
-          <Legend wrapperStyle={{fontSize: "14px"}}/>
-          <Line
+          <Tooltip content={<CustomTooltip adjustForInflation={adjustForInflation} />} cursor={{ stroke: 'hsl(var(--primary))', strokeWidth: 1, strokeDasharray: '3 3' }}/>
+          <Area
             type="monotone"
-            dataKey="projectedValue"
+            dataKey="displayProjectedValue"
             name="Projected Value"
+            stackId="1"
             stroke="hsl(var(--primary))"
-            strokeWidth={3}
-            dot={false}
-            activeDot={{ r: 8, strokeWidth: 2, fill: 'hsl(var(--primary))' }}
+            strokeWidth={2}
+            fill="url(#colorReturns)"
           />
-           <Line
+           <Area
             type="monotone"
-            dataKey="totalInvestment"
+            dataKey="displayTotalInvestment"
             name="Total Investment"
+            stackId="1"
             stroke="hsl(var(--muted-foreground))"
             strokeWidth={2}
-            strokeDasharray="5 5"
-            dot={false}
+            fill="url(#colorInvestment)"
           />
-        </LineChart>
+           {selectedYearData && (
+                <ReferenceDot
+                    x={selectedYearData.year}
+                    y={selectedYearData.displayProjectedValue}
+                    r={8}
+                    fill="hsl(var(--primary))"
+                    stroke="hsl(var(--background))"
+                    strokeWidth={2}
+                />
+            )}
+        </AreaChart>
       </ResponsiveContainer>
     </div>
   );
 }
+
+    

@@ -22,6 +22,7 @@ import { Info } from "lucide-react";
 
 interface AnnualBreakdownProps {
   data: InvestmentData[];
+  adjustForInflation: boolean;
 }
 
 const formatCurrency = (value: number) => {
@@ -33,7 +34,7 @@ const formatCurrency = (value: number) => {
     }).format(value);
   };
 
-export function AnnualBreakdown({ data }: AnnualBreakdownProps) {
+export function AnnualBreakdown({ data, adjustForInflation }: AnnualBreakdownProps) {
   return (
     <Accordion type="single" collapsible className="w-full mt-8">
       <AccordionItem value="item-1">
@@ -71,14 +72,17 @@ export function AnnualBreakdown({ data }: AnnualBreakdownProps) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {data.map((item) => (
-                  <TableRow key={item.year}>
-                    <TableCell className="font-medium">{item.year}</TableCell>
-                    <TableCell>{formatCurrency(item.annualContributions)}</TableCell>
-                    <TableCell className="text-green-400">{formatCurrency(item.annualReturns)}</TableCell>
-                    <TableCell className="text-right font-semibold">{formatCurrency(item.projectedValue)}</TableCell>
-                  </TableRow>
-                ))}
+                {data.map((item) => {
+                    const displayValue = adjustForInflation ? item.inflationAdjustedValue : item.projectedValue;
+                    return (
+                        <TableRow key={item.year}>
+                            <TableCell className="font-medium">{item.year}</TableCell>
+                            <TableCell>{formatCurrency(item.annualContributions)}</TableCell>
+                            <TableCell className={item.annualReturns >= 0 ? "text-green-400" : "text-destructive"}>{formatCurrency(item.annualReturns)}</TableCell>
+                            <TableCell className="text-right font-semibold">{formatCurrency(displayValue)}</TableCell>
+                        </TableRow>
+                    )
+                })}
               </TableBody>
             </Table>
           </div>
@@ -87,3 +91,5 @@ export function AnnualBreakdown({ data }: AnnualBreakdownProps) {
     </Accordion>
   );
 }
+
+    
