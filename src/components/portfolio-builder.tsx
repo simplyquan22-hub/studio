@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, ArrowRight, Trash2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Trash2, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const glassCardClasses = "bg-background/50 backdrop-blur-xl border-t border-l border-r border-b border-white/10 shadow-xl shadow-black/10 bg-gradient-to-br from-white/5 via-transparent to-transparent";
@@ -149,21 +149,21 @@ const availableTickers = [
     { value: 'CPER', label: 'United States Copper Index Fund', category: 'alternatives', group: 'Commodities' },
     { value: 'COMT', label: 'iShares GSCI Commodity ETF', category: 'alternatives', group: 'Commodities' },
     { value: 'GLDM', label: 'SPDR Gold MiniShares Trust', category: 'alternatives', group: 'Commodities' },
-    { value: 'BTC', label: 'Bitcoin', category: 'alternatives', group: 'Crypto' },
-    { value: 'ETH', label: 'Ethereum', category: 'alternatives', group: 'Crypto' },
-    { value: 'SOL', label: 'Solana', category: 'alternatives', group: 'Crypto' },
-    { value: 'ADA', label: 'Cardano', category: 'alternatives', group: 'Crypto' },
-    { value: 'AVAX', label: 'Avalanche', category: 'alternatives', group: 'Crypto' },
-    { value: 'XRP', label: 'Ripple', category: 'alternatives', group: 'Crypto' },
-    { value: 'DOGE', label: 'Dogecoin', category: 'alternatives', group: 'Crypto' },
-    { value: 'DOT', label: 'Polkadot', category: 'alternatives', group: 'Crypto' },
-    { value: 'LTC', label: 'Litecoin', category: 'alternatives', group: 'Crypto' },
-    { value: 'LINK', label: 'Chainlink', category: 'alternatives', group: 'Crypto' },
-    { value: 'MATIC', label: 'Polygon', category: 'alternatives', group: 'Crypto' },
-    { value: 'TRX', label: 'TRON', category: 'alternatives', group: 'Crypto' },
-    { value: 'BCH', label: 'Bitcoin Cash', category: 'alternatives', group: 'Crypto' },
-    { value: 'NEAR', label: 'Near Protocol', category: 'alternatives', group: 'Crypto' },
-    { value: 'ICP', label: 'Internet Computer', category: 'alternatives', group: 'Crypto' },
+    { value: 'BTC-USD', label: 'Bitcoin', category: 'alternatives', group: 'Crypto' },
+    { value: 'ETH-USD', label: 'Ethereum', category: 'alternatives', group: 'Crypto' },
+    { value: 'SOL-USD', label: 'Solana', category: 'alternatives', group: 'Crypto' },
+    { value: 'ADA-USD', label: 'Cardano', category: 'alternatives', group: 'Crypto' },
+    { value: 'AVAX-USD', label: 'Avalanche', category: 'alternatives', group: 'Crypto' },
+    { value: 'XRP-USD', label: 'Ripple', category: 'alternatives', group: 'Crypto' },
+    { value: 'DOGE-USD', label: 'Dogecoin', category: 'alternatives', group: 'Crypto' },
+    { value: 'DOT-USD', label: 'Polkadot', category: 'alternatives', group: 'Crypto' },
+    { value: 'LTC-USD', label: 'Litecoin', category: 'alternatives', group: 'Crypto' },
+    { value: 'LINK-USD', label: 'Chainlink', category: 'alternatives', group: 'Crypto' },
+    { value: 'MATIC-USD', label: 'Polygon', category: 'alternatives', group: 'Crypto' },
+    { value: 'TRX-USD', label: 'TRON', category: 'alternatives', group: 'Crypto' },
+    { value: 'BCH-USD', label: 'Bitcoin Cash', category: 'alternatives', group: 'Crypto' },
+    { value: 'NEAR-USD', label: 'Near Protocol', category: 'alternatives', group: 'Crypto' },
+    { value: 'ICP-USD', label: 'Internet Computer', category: 'alternatives', group: 'Crypto' },
 ];
 
 const tickerGroups = availableTickers.reduce((acc, ticker) => {
@@ -340,6 +340,39 @@ export function PortfolioBuilder() {
     <div className="space-y-8">
       <Card className={glassCardClasses}>
         <CardHeader>
+            <CardTitle className="text-2xl font-headline flex items-center gap-2">
+                <Info className="h-6 w-6" /> How to Use the Portfolio Builder
+            </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4 text-muted-foreground">
+            <p>
+                This tool helps you design a custom investment portfolio. Follow these steps to create a portfolio that aligns with your financial goals and risk tolerance.
+            </p>
+            <ul className="space-y-3 list-decimal list-inside">
+                <li>
+                    <strong>Name Your Portfolio:</strong> Give your portfolio a descriptive name, like "My First Roth IRA" or "Aggressive Growth Plan."
+                </li>
+                <li>
+                    <strong>Choose a Template:</strong> Select a risk profile (Conservative, Balanced, or Aggressive) to set a baseline for your asset allocation between stocks, bonds, and alternatives.
+                </li>
+                <li>
+                    <strong>Adjust Allocation:</strong> Fine-tune the percentage of your portfolio dedicated to each asset class using the sliders. The total must equal 100%.
+                </li>
+                <li>
+                    <strong>Add Tickers:</strong> Search for and add individual stocks, ETFs, funds, or other assets to your portfolio.
+                </li>
+                <li>
+                    <strong>Allocate to Tickers:</strong> In the Portfolio Summary, assign a percentage to each ticker within its category. The total for each category must equal 100%.
+                </li>
+                <li>
+                    <strong>Project Growth:</strong> Once you're done, click "Project My Growth" to see how your custom portfolio could perform over time in the calculator.
+                </li>
+            </ul>
+        </CardContent>
+      </Card>
+
+      <Card className={glassCardClasses}>
+        <CardHeader>
           <CardTitle className="text-2xl font-headline">1. Name Your Portfolio</CardTitle>
         </CardHeader>
         <CardContent>
@@ -438,3 +471,5 @@ export function PortfolioBuilder() {
     </div>
   );
 }
+
+    
