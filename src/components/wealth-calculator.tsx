@@ -136,6 +136,7 @@ export function WealthCalculator() {
 
   const formValues = form.watch();
   const adjustForInflation = form.watch("adjustForInflation");
+  const accountType = form.watch("accountType");
 
   React.useEffect(() => {
     const handleSave = () => {
@@ -190,11 +191,6 @@ export function WealthCalculator() {
 
     const monthlyContribution = contributionAmount * contributionsPerMonthMap[contributionFrequency];
     
-    let effectiveMonthlyContribution = monthlyContribution;
-    if (accountType === 'roth') {
-      effectiveMonthlyContribution = monthlyContribution * (1 - marginalTaxRate / 100);
-    }
-
     let currentValue = initialInvestment;
     let totalPrincipal = initialInvestment;
     let totalFees = 0;
@@ -214,6 +210,7 @@ export function WealthCalculator() {
     });
     
     let lastYearValue = initialInvestment;
+    let cumulativeTaxes = 0;
 
     for (let year = 1; year <= years; year++) {
         let yearlyContribution = 0;
@@ -235,22 +232,18 @@ export function WealthCalculator() {
 
         const preTaxValue = currentValue;
         let finalValue = preTaxValue;
-        let taxForYear = 0;
-
+        
         if (accountType === 'traditional') {
-          taxForYear = preTaxValue * (marginalTaxRate / 100);
-          finalValue -= taxForYear;
+            const taxesOnGrowth = (preTaxValue - totalPrincipal) * (marginalTaxRate / 100);
+            const taxesOnContributions = totalPrincipal * (marginalTaxRate / 100);
+            cumulativeTaxes = taxesOnGrowth > 0 ? taxesOnGrowth : 0;
+            finalValue = preTaxValue - cumulativeTaxes;
         }
         
-        let inflationAdjustedValue = finalValue;
-        let inflationAdjustedPrincipal = totalPrincipal;
-        if (adjustForInflation) {
-            const inflationDivisor = Math.pow(1 + (inflationRate / 100), year);
-            inflationAdjustedValue /= inflationDivisor;
-            inflationAdjustedPrincipal /= inflationDivisor;
-        }
-        
-        const annualReturns = inflationAdjustedValue - lastYearValue - yearlyContribution;
+        const inflationDivisor = Math.pow(1 + (inflationRate / 100), year);
+        const inflationAdjustedValue = finalValue / inflationDivisor;
+
+        const annualReturns = finalValue - (results[year - 1]?.projectedValue || initialInvestment) - yearlyContribution;
         
         results.push({
             year,
@@ -259,13 +252,13 @@ export function WealthCalculator() {
             totalReturns: finalValue - totalPrincipal,
             annualContributions: yearlyContribution,
             annualReturns: isNaN(annualReturns) ? 0 : annualReturns,
-            lostToTaxes: taxForYear,
+            lostToTaxes: cumulativeTaxes,
             lostToFees: totalFees,
             preTaxValue: preTaxValue,
             inflationAdjustedValue: inflationAdjustedValue,
         });
 
-        lastYearValue = inflationAdjustedValue;
+        lastYearValue = finalValue;
     }
 
     return results;
@@ -288,6 +281,8 @@ export function WealthCalculator() {
   if (activeYearData && submittedValues?.adjustForInflation) {
     const inflationDivisor = Math.pow(1 + ((submittedValues.inflationRate ?? 0) / 100), activeYearData.year);
     finalTotalInvestment /= inflationDivisor;
+  } else if (activeYearData) {
+    finalProjectedValue = activeYearData.projectedValue;
   }
   
   let finalTotalReturns = finalProjectedValue - finalTotalInvestment;
@@ -319,14 +314,14 @@ export function WealthCalculator() {
     }
   };
 
-  const finalBreakdownData = data ? data[data.length - 1] : null;
+  const finalBreakdownData = data && selectedYear !== null ? data[selectedYear] : null;
   let totalLostToTaxes = 0;
   let totalLostToFees = 0;
   if(finalBreakdownData && submittedValues) {
     totalLostToFees = finalBreakdownData.lostToFees;
     totalLostToTaxes = finalBreakdownData.lostToTaxes;
     if(submittedValues.adjustForInflation) {
-      const inflationDivisor = Math.pow(1 + (submittedValues.inflationRate / 100), submittedValues.years);
+      const inflationDivisor = Math.pow(1 + (submittedValues.inflationRate / 100), finalBreakdownData.year);
       totalLostToFees /= inflationDivisor;
       totalLostToTaxes /= inflationDivisor;
     }
@@ -439,40 +434,42 @@ export function WealthCalculator() {
                     />
                     <FormField
                       control={form.control}
-                      name="marginalTaxRate"
+                      name="accountType"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Marginal Tax Rate (%)</FormLabel>
-                          <FormControl>
-                            <IconInput icon={<Scale />} type="number" placeholder="25" {...field} />
-                          </FormControl>
+                          <FormLabel>Account Type</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger className="h-12 text-base md:text-sm">
+                                <Briefcase className="mr-2 h-4 w-4" />
+                                <SelectValue placeholder="Select an account type" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="roth">Roth IRA</SelectItem>
+                              <SelectItem value="traditional">Traditional IRA</SelectItem>
+                            </SelectContent>
+                          </Select>
                           <FormMessage />
                         </FormItem>
                       )}
                     />
                 </div>
-                <FormField
-                  control={form.control}
-                  name="accountType"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Account Type</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
+                {accountType === "traditional" && (
+                  <FormField
+                    control={form.control}
+                    name="marginalTaxRate"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Marginal Tax Rate (%)</FormLabel>
                         <FormControl>
-                          <SelectTrigger className="h-12 text-base md:text-sm">
-                            <Briefcase className="mr-2 h-4 w-4" />
-                            <SelectValue placeholder="Select an account type" />
-                          </SelectTrigger>
+                          <IconInput icon={<Scale />} type="number" placeholder="25" {...field} />
                         </FormControl>
-                        <SelectContent>
-                          <SelectItem value="roth">Roth IRA</SelectItem>
-                          <SelectItem value="traditional">Traditional IRA</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
                 <Card className="bg-background/30 border-white/10 p-4 space-y-4">
                   <FormField
                       control={form.control}
@@ -551,19 +548,19 @@ export function WealthCalculator() {
                     <div className="text-sm text-muted-foreground">
                         Projected Value in Year {selectedYear}
                     </div>
-                     <div className="flex items-center justify-center gap-2">
-                        <p className={`text-4xl font-bold ${isCrashSimulated ? 'text-destructive' : 'text-primary'}`}>
-                            {formatCurrency(finalProjectedValue)}
-                        </p>
-                         <Tooltip>
+                     <Tooltip>
+                        <div className="flex items-center justify-center gap-2">
+                            <p className={`text-4xl font-bold ${isCrashSimulated ? 'text-destructive' : 'text-primary'}`}>
+                                {formatCurrency(finalProjectedValue)}
+                            </p>
                             <TooltipTrigger asChild>
                                 <Info className="h-5 w-5 text-muted-foreground cursor-pointer" />
                             </TooltipTrigger>
-                            <TooltipContent>
-                                <p>All returns are estimates — actual results will vary.<br/> This calculator is for educational purposes only.</p>
-                            </TooltipContent>
-                        </Tooltip>
-                    </div>
+                        </div>
+                        <TooltipContent>
+                            <p>All returns are estimates — actual results will vary.<br/> This calculator is for educational purposes only.</p>
+                        </TooltipContent>
+                    </Tooltip>
                 </div>
 
                 <div className="px-4">
@@ -634,5 +631,3 @@ export function WealthCalculator() {
     </TooltipProvider>
   );
 }
-
-    
